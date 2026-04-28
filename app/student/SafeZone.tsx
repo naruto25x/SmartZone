@@ -3,8 +3,9 @@ import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import MapView, { Circle, Marker } from "react-native-maps";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, db } from "../../FirebaseConfig";
 
 export default function SafeZone() {
@@ -199,6 +200,16 @@ export default function SafeZone() {
       ...ZOOM_LEVEL,
     };
     setRegion(newRegion);
+
+    // Also update Firestore to keep it in sync
+    const user = auth.currentUser;
+    if (user) {
+      updateDoc(doc(db, "users", user.uid), {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        lastLocationUpdate: new Date(),
+      }).catch(e => console.log("Sync error:", e));
+    }
   };
 
   const onRefresh = React.useCallback(() => {

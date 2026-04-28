@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BottomNav from "../../components/BottomNav";
 import { auth, db } from "../../FirebaseConfig";
 
@@ -13,97 +14,136 @@ export default function GuardianHome() {
   const [guardianName, setGuardianName] = useState("");
   const [students, setStudents] = useState<any[]>([]);
 
-  const fetchGuardianData = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+  // Real-time listener for students and their locations
+  useEffect(() => {
+    let unsubRequests: () => void;
+    let unsubStudents: { [key: string]: () => void } = {};
+    let unsubZones: { [key: string]: () => void } = {};
 
-    try {
-      const userSnap = await getDoc(doc(db, "users", user.uid));
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        setGuardianName(userData.name?.split(" ")[0] || "Guardian");
-        const mobile = userData.mobile;
-        
-        if (mobile) {
-          // Fetch Pending Requests Count
-          const qPending = query(
-            collection(db, "guardian_requests"), 
-            where("guardian_phone", "==", mobile),
-            where("status", "==", "pending")
-          );
-          const pendingSnap = await getDocs(qPending);
-          setPendingRequests(pendingSnap.size);
-
-          // Fetch Connected Students
-          const qAccepted = query(
-            collection(db, "guardian_requests"),
-            where("guardian_phone", "==", mobile),
-            where("status", "==", "accepted")
-          );
-          const acceptedSnap = await getDocs(qAccepted);
-          
-          const studentsList = await Promise.all(acceptedSnap.docs.map(async (d) => {
-            const data = d.data();
-            // Fetch student's current location and active safe zone status
-            let isSafe = true; 
-            let hasActiveZone = false;
-            let statusText = "Not Active";
-
-            try {
-              if (data.student_id) {
-                // 1. Get student's current location from users collection
-                const studentSnap = await getDoc(doc(db, "users", data.student_id));
-                const studentData = studentSnap.data();
-                const currentLat = studentData?.latitude;
-                const currentLng = studentData?.longitude;
-
-                // 2. Fetch student's active safe zone
-                const zoneQuery = query(
-                  collection(db, "safe_zones"),
-                  where("userId", "==", data.student_id),
-                  where("isActive", "==", true)
-                );
-                const zoneSnap = await getDocs(zoneQuery);
-                
-                if (!zoneSnap.empty) {
-                  hasActiveZone = true;
-                  const activeZone = zoneSnap.docs[0].data();
-                  
-                  // 3. Calculate if student is within the radius
-                  if (currentLat && currentLng) {
-                    const distance = getDistance(
-                      currentLat, currentLng, 
-                      activeZone.latitude, activeZone.longitude
-                    );
-                    isSafe = distance <= activeZone.radius;
-                    statusText = isSafe ? "Safe" : "Unsafe";
-                  } else {
-                    // If location unknown but zone active, we can't be sure, 
-                    // but let's default to Safe if we have no evidence of Unsafe
-                    statusText = "Safe";
-                  }
-                } else {
-                  hasActiveZone = false;
-                  statusText = "Not Active";
-                }
-              }
-            } catch (e) {
-              console.log("Error checking student status:", e);
-            }
-            
-            return { id: d.id, ...data, isSafe, hasActiveZone, statusText };
-          }));
-
-          setStudents(studentsList);
-        }
+    const setupListeners = async () => {
+      const user = auth.currentUser;
+      if (!user) {
+        console.log("No auth user found");
+        return;
       }
-    } catch (err) {
-      console.error("Guardian Home fetch error:", err);
-    }
+
+      console.log("Setting up listeners for guardian:", user.uid);
+
+      // Listen to guardian user doc for mobile number changes
+      const unsubUser = onSnapshot(doc(db, "users", user.uid), (userSnap) => {
+        if (!userSnap.exists()) return;
+        
+        const userData = userSnap.data();
+        const mobile = userData.mobile;
+        setGuardianName(userData.name?.split(" ")[0] || "Guardian");
+
+        if (!mobile) {
+          console.log("Guardian has no mobile number set");
+          return;
+        }
+
+        // 1. Listen for connection requests (to update count and list)
+        const qAccepted = query(
+          collection(db, "guardian_requests"),
+          where("guardian_phone", "==", mobile),
+          where("status", "==", "accepted")
+        );
+
+        if (unsubRequests) unsubRequests();
+        unsubRequests = onSnapshot(qAccepted, (snapshot) => {
+          const studentRequests = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter((req: any) => req.student_id || req.student_uid);
+          
+          console.log("Found accepted student requests:", studentRequests.length);
+          
+          // Setup individual listeners for each student's location and zones
+          studentRequests.forEach((req: any) => {
+            const sid = req.student_id || req.student_uid;
+            if (sid && !unsubStudents[sid]) {
+              unsubStudents[sid] = onSnapshot(doc(db, "users", sid), (sDoc) => {
+                if (sDoc.exists()) {
+                  const sData = sDoc.data();
+                  updateStudentInState(sid, { 
+                    latitude: sData?.latitude, 
+                    longitude: sData?.longitude 
+                  });
+                }
+              });
+
+              const zoneQ = query(
+                collection(db, "safe_zones"),
+                where("userId", "==", sid),
+                where("isActive", "==", true)
+              );
+              unsubZones[sid] = onSnapshot(zoneQ, (zSnap) => {
+                const activeZone = !zSnap.empty ? zSnap.docs[0].data() : null;
+                updateStudentInState(sid, { activeZone });
+              });
+            }
+          });
+
+          // Initialize/Update student list
+          setStudents(prev => {
+            return studentRequests.map(req => {
+              const sid = (req as any).student_id || (req as any).student_uid;
+              const existing = prev.find(p => (p.student_id || p.student_uid) === sid);
+              return {
+                ...req,
+                student_id: sid,
+                latitude: existing?.latitude,
+                longitude: existing?.longitude,
+                activeZone: existing?.activeZone,
+                statusText: calculateStatus(existing?.latitude, existing?.longitude, existing?.activeZone)
+              };
+            });
+          });
+        });
+
+        const qPending = query(
+          collection(db, "guardian_requests"), 
+          where("guardian_phone", "==", mobile),
+          where("status", "==", "pending")
+        );
+        onSnapshot(qPending, (s) => setPendingRequests(s.size));
+      });
+
+      return () => {
+        unsubUser();
+      };
+    };
+
+    const cleanup = setupListeners();
+
+    return () => {
+      if (unsubRequests) unsubRequests();
+      Object.values(unsubStudents).forEach(fn => fn());
+      Object.values(unsubZones).forEach(fn => fn());
+    };
+  }, []);
+
+  const updateStudentInState = (studentId: string, updates: any) => {
+    setStudents(prev => prev.map(s => {
+      if (s.student_id === studentId) {
+        const merged = { ...s, ...updates };
+        return {
+          ...merged,
+          statusText: calculateStatus(merged.latitude, merged.longitude, merged.activeZone)
+        };
+      }
+      return s;
+    }));
   };
 
-  // Helper function to calculate distance in meters between two points
-  const getDistance = (lat1, lon1, lat2, lon2) => {
+  const calculateStatus = (lat: number | null | undefined, lng: number | null | undefined, zone: any) => {
+    if (!zone) return "Not Active";
+    if (!lat || !lng) return "Inactive";
+    
+    const distance = getDistance(lat, lng, zone.latitude, zone.longitude);
+    return distance <= zone.radius ? "Safe" : "Unsafe";
+  };
+
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3; // Earth radius in meters
     const φ1 = lat1 * Math.PI / 180;
     const φ2 = lat2 * Math.PI / 180;
@@ -118,13 +158,28 @@ export default function GuardianHome() {
     return R * c;
   };
 
-  useEffect(() => {
-    fetchGuardianData();
-  }, []);
-
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    fetchGuardianData().then(() => setRefreshing(false));
+    // Force a re-mount essentially or just re-fetch pending count
+    const user = auth.currentUser;
+    if (user) {
+      getDoc(doc(db, "users", user.uid)).then(userSnap => {
+        if (userSnap.exists()) {
+          const mobile = userSnap.data().mobile;
+          const qPending = query(
+            collection(db, "guardian_requests"), 
+            where("guardian_phone", "==", mobile),
+            where("status", "==", "pending")
+          );
+          getDocs(qPending).then(s => {
+            setPendingRequests(s.size);
+            setRefreshing(false);
+          });
+        }
+      });
+    } else {
+      setRefreshing(false);
+    }
   }, []);
 
   return (

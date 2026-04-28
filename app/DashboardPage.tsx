@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { auth, db } from "../FirebaseConfig";
 import GuardianHome from "./guardian/home";
 import StudentHome from "./student/home";
@@ -47,12 +49,16 @@ export default function DashboardScreen() {
   }, []);
 
   if (loading) {
-    return null; // Silent loading to make it feel instant
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </View>
+    );
   }
 
-  if (userType === "Guardian") {
-    return <GuardianHome />;
-  }
-
-  return <StudentHome />;
+  return (
+    <SafeAreaProvider>
+      {userType === "Guardian" ? <GuardianHome /> : <StudentHome />}
+    </SafeAreaProvider>
+  );
 }

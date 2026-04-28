@@ -119,7 +119,7 @@ export default function LiveTracking() {
         </View>
         <View style={styles.center}>
           <MaterialIcons name="location-off" size={60} color="#ccc" />
-          <Text style={styles.noActiveText}>User has not set any active location.</Text>
+          <Text style={styles.noActiveText}>User does not set any active live map.</Text>
           <TouchableOpacity style={styles.goBackBtn} onPress={() => router.back()}>
             <Text style={styles.goBackBtnText}>Go Back</Text>
           </TouchableOpacity>

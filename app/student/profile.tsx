@@ -2,7 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import BottomNav from "../../components/BottomNav";
 import { auth, db } from "../../FirebaseConfig";
 
@@ -38,14 +38,24 @@ export default function StudentProfile() {
     if (user?.uid) {
       setIsEditing(false); // Optimistic update
       try {
-        await setDoc(doc(db, "users", user.uid), {
+        const userData = {
           name: displayName,
           mobile: mobile,
           gender: gender
-        }, { merge: true });
+        };
+
+        // 1. Update Firebase Firestore
+        await setDoc(doc(db, "users", user.uid), userData, { merge: true });
+
+        // 2. Update MySQL Backend
+        await fetch(`http://192.168.0.114:5000/api/users/${user.uid}`, { 
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(userData),
+        });
       } catch (error) {
-        Alert.alert("Error", "Failed to update profile");
-        setIsEditing(true);
+        console.error("Profile update error:", error);
+        // Alert.alert("Error", "Failed to update profile");
       }
     }
   };

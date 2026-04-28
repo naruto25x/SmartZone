@@ -70,16 +70,24 @@ export default function GuardianProfile() {
       // Optimistically close editing mode for instant feedback
       setIsEditing(false);
       try {
-        await setDoc(doc(db, "users", user.uid), {
+        const userData = {
           name: displayName,
           mobile: mobile,
           gender: gender
-        }, { merge: true });
-        // Data is already updated in local state (displayName, mobile, gender)
+        };
+
+        // 1. Update Firebase Firestore
+        await setDoc(doc(db, "users", user.uid), userData, { merge: true });
+
+        // 2. Update MySQL Backend
+        await fetch(`http://192.168.0.114:5000/api/users/${user.uid}`, { 
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(userData),
+        });
       } catch (error) {
-        Alert.alert("Error", "Failed to update profile. Please try again.");
-        // Re-enable editing if it failed so user doesn't lose data
-        setIsEditing(true);
+        console.error("Profile update error:", error);
+        // Alert.alert("Error", "Failed to update profile. Please try again.");
       }
     }
   };

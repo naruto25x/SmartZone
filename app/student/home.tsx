@@ -1,8 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BottomNav from "../../components/BottomNav";
 import { auth, db } from "../../FirebaseConfig";
 
@@ -13,6 +15,42 @@ export default function StudentHome() {
   const [zoneCount, setZoneCount] = useState(0);
   const [contactCount, setContactCount] = useState(0);
   const [guardianCount, setGuardianCount] = useState(0);
+
+  useEffect(() => {
+    fetchStudentData();
+    startLocationTracking();
+  }, []);
+
+  const startLocationTracking = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Permission to access location was denied');
+      return;
+    }
+
+    // High accuracy tracking that updates Firestore
+    await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 10000, // Update every 10 seconds
+        distanceInterval: 10, // Or every 10 meters
+      },
+      async (location) => {
+        const user = auth.currentUser;
+        if (user) {
+          try {
+            await updateDoc(doc(db, "users", user.uid), {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              lastLocationUpdate: new Date(),
+            });
+          } catch (e) {
+            console.error("Error updating location:", e);
+          }
+        }
+      }
+    );
+  };
 
   const fetchStudentData = async () => {
     const user = auth.currentUser;

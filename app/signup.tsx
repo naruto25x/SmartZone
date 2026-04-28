@@ -85,7 +85,7 @@ export default function SignUpScreen() {
       setDoc(doc(db, "users", user.uid), userData).catch(err => console.error("Firebase Firestore save error:", err));
 
       // Save to MySQL
-      fetch("http://192.168.0.107:5000/api/users", { 
+      fetch("http://192.168.0.114:5000/api/users", { 
         method: "POST",
         headers: {
           "Content-Type": "application/json",

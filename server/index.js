@@ -28,15 +28,24 @@ app.get('/', (req, res) => {
 
 // Example: API to save user info after signup
 app.post('/api/users', (req, res) => {
-    const { uid, name, email, userType, gender } = req.body;
-    const sql = "INSERT INTO users (uid, name, email, userType, gender) VALUES (?, ?, ?, ?, ?)";
+    const { uid, name, email, mobile, userType, gender } = req.body;
+    // Use INSERT ... ON DUPLICATE KEY UPDATE to prevent duplicate rows if data already exists
+    const sql = `
+        INSERT INTO users (uid, name, email, mobile, userType, gender) 
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+        name = VALUES(name), 
+        mobile = VALUES(mobile), 
+        gender = VALUES(gender),
+        userType = VALUES(userType)
+    `;
     
-    db.query(sql, [uid, name, email, userType, gender || 'Not Specified'], (err, result) => {
+    db.query(sql, [uid, name, email, mobile || null, userType, gender || 'Not Specified'], (err, result) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: "Database error" });
         }
-        res.status(200).json({ message: "User saved to MySQL successfully" });
+        res.status(200).json({ message: "User saved/updated in MySQL successfully" });
     });
 });
 
@@ -122,6 +131,6 @@ app.put('/api/guardian-requests/:id', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Smart SafeZone Backend is running on http://192.168.0.114:${PORT}`);
 });

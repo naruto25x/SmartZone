@@ -59,8 +59,9 @@ export default function AddGuardianScreen() {
     setIsLoading(true);
     try {
       const requestData = {
+        student_id: user.uid,
         student_uid: user.uid,
-        student_name: user.displayName,
+        student_name: user.displayName || user.email?.split("@")[0],
         guardian_name: parentName,
         guardian_phone: parentPhone.replace(/\s/g, ''), // remove spaces
         relationship: relationship,
@@ -72,7 +73,7 @@ export default function AddGuardianScreen() {
       await addDoc(collection(db, "guardian_requests"), requestData);
 
       // 2. Save to MySQL Backend
-      await fetch("http://192.168.0.107:5000/api/guardian-requests", {
+      await fetch("http://192.168.0.114:5000/api/guardian-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestData)
