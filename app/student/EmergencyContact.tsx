@@ -4,7 +4,8 @@ import * as Contacts from "expo-contacts";
 import { useRouter } from "expo-router";
 import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { Alert, Linking, Platform, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, db } from "../../FirebaseConfig";
 
 export default function EmergencyContactsScreen() {

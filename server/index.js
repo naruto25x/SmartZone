@@ -2,7 +2,6 @@ const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-require('dotenv').config();
 
 const app = express();
 app.use(cors());
@@ -10,10 +9,10 @@ app.use(bodyParser.json());
 
 // Database Connection
 const db = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'smart_safezone',
+    host: 'localhost',
+    user: 'root',
+    password: '2210676126abc',
+    database: 'smart_safezone',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -49,9 +48,9 @@ app.post('/api/users', (req, res) => {
     });
 });
 
-// API to get user details by UID
-app.get('/api/users/:uid', (req, res) => {
-    const { uid } = req.params;
+// API to get user details by UID - Changed to POST for security
+app.post('/api/get-user', (req, res) => {
+    const { uid } = req.body;
     const sql = "SELECT * FROM users WHERE uid = ?";
     
     db.query(sql, [uid], (err, result) => {
@@ -96,9 +95,9 @@ app.post('/api/guardian-requests', (req, res) => {
     });
 });
 
-// API to get pending requests for a guardian (matched by phone)
-app.get('/api/guardian-requests/:phone', (req, res) => {
-    const { phone } = req.params;
+// API to get pending requests for a guardian (matched by phone) - Changed to POST for security
+app.post('/api/get-guardian-requests', (req, res) => {
+    const { phone } = req.body;
     const sql = `
         SELECT gr.*, u.name as student_name 
         FROM guardian_requests gr 
@@ -130,7 +129,7 @@ app.put('/api/guardian-requests/:id', (req, res) => {
     });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Smart SafeZone Backend is running on http://192.168.0.114:${PORT}`);
 });

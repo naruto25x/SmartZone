@@ -2,8 +2,9 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { collection, doc, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, { Circle, Marker } from "react-native-maps";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../../FirebaseConfig";
 
 export default function LiveTracking() {

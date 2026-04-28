@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { Alert, RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BottomNav from "../../components/BottomNav";
 import { auth, db } from "../../FirebaseConfig";
 
